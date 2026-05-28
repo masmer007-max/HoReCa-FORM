@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Průzkum HoReCa — POS systém budoucnosti</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --green: #1D9E75;
+    --green-light: #E1F5EE;
+    --green-dark: #085041;
+    --green-mid: #9FE1CB;
+    --text: #1a1a1a;
+    --text-muted: #6b7280;
+    --bg: #ffffff;
+    --surface: #f9fafb;
+    --border: rgba(0,0,0,0.1);
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--surface);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+
+  /* Header */
+  .site-header {
+    text-align: center;
+    margin-bottom: 2.5rem;
+  }
+  .logo-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px; height: 48px;
+    background: var(--green);
+    border-radius: 14px;
+    margin-bottom: 1rem;
+  }
+  .logo-dot svg { width: 24px; height: 24px; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; }
+  .site-header h1 { font-size: 1.6rem; font-weight: 600; margin-bottom: 0.4rem; }
+  .site-header p { font-size: 0.95rem; color: var(--text-muted); max-width: 420px; margin: 0 auto; }
+
+  /* Progress */
+  .progress-wrap { margin-bottom: 2rem; }
+  .progress-track { height: 5px; background: #e5e7eb; border-radius: 99px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--green); border-radius: 99px; transition: width 0.45s cubic-bezier(.4,0,.2,1); }
+  .progress-meta { display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.78rem; color: var(--text-muted); }
+
+  /* Card */
+  .card {
+    background: var(--bg);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    padding: 2rem;
+    display: none;
+    animation: rise 0.3s ease;
+  }
+  .card.active { display: block; }
+  @keyframes rise { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: var(--green-light);
+    color: var(--green-dark);
+    padding: 3px 10px;
+    border-radius: 99px;
+    margin-bottom: 0.9rem;
+  }
+  .card h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 0.3rem; }
+  .card .subtitle { font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.75rem; }
+
+  /* Questions */
+  .question { margin-bottom: 1.6rem; }
+  .question-label {
+    display: block;
+    font-size: 0.92rem;
+    font-weight: 600;
+    margin-bottom: 0.6rem;
+  }
+  .question-hint { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+
+  .opts { display: flex; flex-direction: column; gap: 7px; }
+  .opt {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    font-size: 0.9rem;
+  }
+  .opt:hover { border-color: var(--green); background: var(--green-light); }
+  .opt input { accent-color: var(--green); width: 16px; height: 16px; flex-shrink: 0; cursor: pointer; }
+  .opt label { cursor: pointer; flex: 1; }
+
+  .custom-wrap { margin-top: 8px; display: none; }
+  .custom-wrap.show { display: block; }
+  .custom-wrap input,
+  .custom-wrap textarea,
+  input[type=email],
+  input[type=text] {
+    width: 100%;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    color: var(--text);
+    font-family: inherit;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .custom-wrap input:focus,
+  .custom-wrap textarea:focus,
+  input[type=email]:focus,
+  input[type=text]:focus { border-color: var(--green); }
+  .custom-wrap textarea { resize: vertical; min-height: 90px; }
+
+  /* Scale */
+  .scale-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .scale-btn {
+    width: 46px; height: 46px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    color: var(--text);
+  }
+  .scale-btn:hover { border-color: var(--green); background: var(--green-light); }
+  .scale-btn.on { background: var(--green); color: #fff; border-color: var(--green); font-weight: 600; }
+  .scale-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 5px; }
+
+  /* Nav */
+  .nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 2rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+  }
+  .btn {
+    padding: 10px 22px;
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+  }
+  .btn:hover { background: var(--surface); }
+  .btn-primary {
+    background: var(--green);
+    color: #fff;
+    border-color: var(--green);
+  }
+  .btn-primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Gate */
+  .gate-box {
+    background: var(--green-light);
+    border: 1px solid var(--green-mid);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    text-align: center;
+    margin-top: 1rem;
+  }
+  .gate-box p { font-size: 0.95rem; color: var(--green-dark); margin-bottom: 1.1rem; }
+  .gate-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  /* Success */
+  .success {
+    text-align: center;
+    padding: 3rem 1rem;
+  }
+  .check-circle {
+    width: 72px; height: 72px;
+    border-radius: 50%;
+    background: var(--green-light);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1.5rem;
+  }
+  .check-circle svg { width: 32px; height: 32px; stroke: var(--green); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .success h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.5rem; }
+  .success p { font-size: 0.95rem; color: var(--text-muted); max-width: 360px; margin: 0 auto; }
+
+  /* Saving */
+  .saving { font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+  .saving-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  .question.error { animation: shake 0.35s ease; }
+  .question.error .question-label { color: #dc2626; }
+  .question.error .opts .opt { border-color: rgba(220,38,38,0.3); }
+  .error-scale .scale-btn { border-color: rgba(220,38,38,0.4) !important; }
+  @keyframes shake {
+    0%,100%{transform:translateX(0)}
+    20%{transform:translateX(-6px)}
+    40%{transform:translateX(6px)}
+    60%{transform:translateX(-4px)}
+    80%{transform:translateX(4px)}
+  }
+
+  @media (max-width: 500px) {
+    .card { padding: 1.25rem; }
+    body { padding: 1rem 0.75rem; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="site-header">
+    <div class="logo-dot">
+      <svg viewBox="0 0 24 24"><path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+    </div>
+    <h1>Průzkum pro provozovatele HoReCa</h1>
+    <p>Stávající POS systémy jsou nástroje — reagují na to, co se stalo. Budujeme asistenta, který přemýšlí dopředu. Aby byl užitečný pro lidi jako vy, potřebujeme znát vaši realitu.</p>
+  </header>
+
+  <div class="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" id="prog" style="width:10%"></div></div>
+    <div class="progress-meta">
+      <span id="prog-label">Blok 1 z 5</span>
+      <span id="prog-pct">10 %</span>
+    </div>
+  </div>
+
+  <!-- ===== BLOK 1: PROFIL ===== -->
+  <div class="card active" id="b1">
+    <span class="badge">Základní informace</span>
+    <h2>Profil provozovny</h2>
+    <p class="subtitle">Každý typ provozovny má jiné tempo, jiné problémy a jiné priority. Abychom věděli, v jakém kontextu pracujete, začneme pár základními údaji o vás a vašem podniku.</p>
+
+    <div class="question">
+      <span class="question-label">Typ provozovny</span>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q_type" value="restaurant"><label>Restaurace</label></label>
+        <label class="opt"><input type="radio" name="q_type" value="bar"><label>Bar / kavárna / club</label></label>
+        <label class="opt"><input type="radio" name="q_type" value="hotel"><label>Hotel / penzion</label></label>
+        <label class="opt"><input type="radio" name="q_type" value="catering"><label>Catering / food service</label></label>
+        <label class="opt"><input type="radio" name="q_type" value="multi"><label>Více provozoven / řetězec</label></label>
+        <label class="opt"><input type="radio" name="q_type" value="other" onchange="tog('tw1',true)"><label>Jiné</label></label>
+      </div>
+      <div class="custom-wrap" id="tw1"><input type="text" id="q_type_custom" placeholder="Upřesněte typ provozovny…"></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">Kapacita provozovny</span>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q_size" value="small"><label>Do 30 míst / do 20 pokojů</label></label>
+        <label class="opt"><input type="radio" name="q_size" value="medium"><label>30–80 míst / 20–50 pokojů</label></label>
+        <label class="opt"><input type="radio" name="q_size" value="large"><label>80+ míst / 50+ pokojů</label></label>
+        <label class="opt"><input type="radio" name="q_size" value="other" onchange="tog('tw2',true)"><label>Jiné / nelze zařadit</label></label>
+      </div>
+      <div class="custom-wrap" id="tw2"><input type="text" id="q_size_custom" placeholder="Upřesněte kapacitu…"></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">Vaše role</span>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q_role" value="owner"><label>Majitel / spolumajitel</label></label>
+        <label class="opt"><input type="radio" name="q_role" value="manager"><label>Manažer / provozní</label></label>
+        <label class="opt"><input type="radio" name="q_role" value="it"><label>IT / technický ředitel</label></label>
+        <label class="opt"><input type="radio" name="q_role" value="other" onchange="tog('tw3',true)"><label>Jiná role</label></label>
+      </div>
+      <div class="custom-wrap" id="tw3"><input type="text" id="q_role_custom" placeholder="Upřesněte vaši roli…"></div>
+    </div>
+
+    <div class="question" style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border);">
+      <span class="question-label">Chcete, abychom vás kontaktovali pro testování produktu? <span style="font-weight:400;color:var(--text-muted)">(volitelné)</span></span>
+      <p class="question-hint" style="margin-bottom:8px;">Zanechte svůj e-mail — ozveme se vám jako prvním, až spustíme beta verzi.</p>
+      <div class="custom-wrap show"><input type="email" id="q_email_b1" placeholder="váš@email.cz"></div>
+    </div>
+
+    <div class="nav">
+      <span></span>
+      <button class="btn btn-primary" onclick="go(1,'b2')">Pokračovat →</button>
+    </div>
+  </div>
+
+  <!-- ===== BLOK 2: SOUČASNÝ STAV ===== -->
+  <div class="card" id="b2">
+    <span class="badge">Současný stav</span>
+    <h2>Váš současný POS systém</h2>
+    <p class="subtitle">Většina systémů vznikla v době, kdy se data zadávala ručně a reporty se generovaly jednou týdně. Jsou stabilní — ale statické. Řekněte nám, co dnes používáte a kde to skřípe.</p>
+
+    <div class="question">
+      <span class="question-label">Používáte aktuálně POS systém?</span>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q_has_pos" value="yes"><label>Ano, jsme spokojeni</label></label>
+        <label class="opt"><input type="radio" name="q_has_pos" value="yes_issues"><label>Ano, ale máme problémy</label></label>
+        <label class="opt"><input type="radio" name="q_has_pos" value="no"><label>Ne, fungujeme bez systému</label></label>
+        <label class="opt"><input type="radio" name="q_has_pos" value="looking"><label>Hledáme nový systém</label></label>
+        <label class="opt"><input type="radio" name="q_has_pos" value="other" onchange="tog('tw4',true)"><label>Jiná situace</label></label>
+      </div>
+      <div class="custom-wrap" id="tw4"><input type="text" id="q_has_pos_custom" placeholder="Popište vaši situaci…"></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">Jak jste celkově spokojeni se současným řešením?</span>
+      <p class="question-hint">1 = vůbec ne &nbsp;·&nbsp; 5 = velmi spokojeni</p>
+      <div class="scale-row" id="sc-sat">
+        <button class="scale-btn" onclick="scale('satisfaction',1)">1</button>
+        <button class="scale-btn" onclick="scale('satisfaction',2)">2</button>
+        <button class="scale-btn" onclick="scale('satisfaction',3)">3</button>
+        <button class="scale-btn" onclick="scale('satisfaction',4)">4</button>
+        <button class="scale-btn" onclick="scale('satisfaction',5)">5</button>
+      </div>
+      <div class="scale-labels"><span>Velmi nespokojen</span><span>Velmi spokojen</span></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">Největší problémy se současným systémem</span>
+      <p class="question-hint">Vyberte vše, co platí.</p>
+      <div class="opts">
+        <label class="opt"><input type="checkbox" name="q_current_pain" value="slow"><label>Pomalost a výpadky</label></label>
+        <label class="opt"><input type="checkbox" name="q_current_pain" value="expensive"><label>Vysoká cena / poplatky</label></label>
+        <label class="opt"><input type="checkbox" name="q_current_pain" value="no_reports"><label>Chybí přehledy a reporty</label></label>
+        <label class="opt"><input type="checkbox" name="q_current_pain" value="hard_to_use"><label>Složité ovládání</label></label>
+        <label class="opt"><input type="checkbox" name="q_current_pain" value="no_integration"><label>Nefunguje s ostatními systémy</label></label>
+        <label class="opt"><input type="checkbox" name="q_current_pain" value="no_support"><label>Špatná podpora</label></label>
+        <label class="opt"><input type="checkbox" name="q_current_pain" value="other" onchange="togCb('q_current_pain','tw5')"><label>Jiný problém</label></label>
+      </div>
+      <div class="custom-wrap" id="tw5"><input type="text" id="q_current_pain_custom" placeholder="Popište váš hlavní problém…"></div>
+    </div>
+
+    <div class="question" style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border);">
+      <span class="question-label">Chcete, abychom vás kontaktovali pro testování produktu? <span style="font-weight:400;color:var(--text-muted)">(volitelné)</span></span>
+      <p class="question-hint" style="margin-bottom:8px;">Zanechte svůj e-mail — ozveme se vám jako prvním, až spustíme beta verzi.</p>
+      <div class="custom-wrap show"><input type="email" id="q_email_b2" placeholder="váš@email.cz"></div>
+    </div>
+
+    <div class="nav">
+      <button class="btn" onclick="go(2,'b1')">← Zpět</button>
+      <button class="btn btn-primary" onclick="go(2,'bgate')">Pokračovat →</button>
+    </div>
+  </div>
+
+  <!-- ===== GATE ===== -->
+  <div class="card" id="bgate">
+    <div style="text-align:center;padding:1rem 0;">
+      <div class="check-circle" style="background:#FFF3CD;margin-bottom:1rem;">
+        <svg viewBox="0 0 24 24" style="stroke:#b45309;"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <h2>Základní část dokončena!</h2>
+      <p class="subtitle" style="margin-bottom:0;">Díky. Pokud máte ještě chvilku, zbývají 3 krátké bloky — právě vaše každodenní bolesti jsou pro nás nejcennější vstup.</p>
+    </div>
+    <div class="gate-box">
+      <p>Chcete pokračovat a říct nám, co vás skutečně trápí? Tato část je pro nás nejdůležitější — investoři chtějí vidět reálná data od reálných provozovatelů.</p>
+      <div class="gate-btns">
+        <button class="btn btn-primary" onclick="go('gate','b3')">Ano, pokračuji →</button>
+        <button class="btn" onclick="send(true)">Ne, odeslat teď</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== BLOK 3: BOLESTI ===== -->
+  <div class="card" id="b3">
+    <span class="badge">Hloubkový průzkum</span>
+    <h2>Vaše každodenní problémy</h2>
+    <p class="subtitle">Náš systém neříká, že došlo pivo — říká, že dojde v pátek večer, a objednávku udělá sám. Ale víme to jen tehdy, pokud rozumíme, kde dnes ztrácíte čas a peníze.</p>
+
+    <div class="question">
+      <span class="question-label">Co vám bere nejvíce času každý den?</span>
+      <div class="opts">
+        <label class="opt"><input type="checkbox" name="q_time" value="orders"><label>Zpracování objednávek a reklamací</label></label>
+        <label class="opt"><input type="checkbox" name="q_time" value="inventory"><label>Správa skladu a objednávky zboží</label></label>
+        <label class="opt"><input type="checkbox" name="q_time" value="staff"><label>Plánování a řízení personálu</label></label>
+        <label class="opt"><input type="checkbox" name="q_time" value="reports"><label>Tvorba reportů a uzávěrek</label></label>
+        <label class="opt"><input type="checkbox" name="q_time" value="customers"><label>Řešení stížností zákazníků</label></label>
+        <label class="opt"><input type="checkbox" name="q_time" value="other" onchange="togCb('q_time','tw6')"><label>Jiná oblast</label></label>
+      </div>
+      <div class="custom-wrap" id="tw6"><input type="text" id="q_time_custom" placeholder="Co vám bere nejvíce času?"></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">Co vás stojí zbytečně peníze?</span>
+      <div class="opts">
+        <label class="opt"><input type="checkbox" name="q_money" value="waste"><label>Plýtvání surovinami</label></label>
+        <label class="opt"><input type="checkbox" name="q_money" value="theft"><label>Krádeže nebo chyby personálu</label></label>
+        <label class="opt"><input type="checkbox" name="q_money" value="overtime"><label>Přesčasy a špatné plánování směn</label></label>
+        <label class="opt"><input type="checkbox" name="q_money" value="systems"><label>Příliš drahé systémy / licence</label></label>
+        <label class="opt"><input type="checkbox" name="q_money" value="errors"><label>Chyby v objednávkách a fakturaci</label></label>
+        <label class="opt"><input type="checkbox" name="q_money" value="other" onchange="togCb('q_money','tw7')"><label>Jiný zdroj zbytečných nákladů</label></label>
+      </div>
+      <div class="custom-wrap" id="tw7"><input type="text" id="q_money_custom" placeholder="Popište zbytečné náklady…"></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">Kdybyste mohli změnit jednu věc ve své provozovně zítra, co by to bylo?</span>
+      <div class="custom-wrap show"><textarea id="q_one_change" placeholder="Napište volně — je to pro nás velmi cenné…"></textarea></div>
+    </div>
+
+    <div class="question" style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border);">
+      <span class="question-label">Chcete, abychom vás kontaktovali pro testování produktu? <span style="font-weight:400;color:var(--text-muted)">(volitelné)</span></span>
+      <p class="question-hint" style="margin-bottom:8px;">Zanechte svůj e-mail — ozveme se vám jako prvním, až spustíme beta verzi.</p>
+      <div class="custom-wrap show"><input type="email" id="q_email_b3" placeholder="váš@email.cz"></div>
+    </div>
+
+    <div class="nav">
+      <button class="btn" onclick="go(3,'bgate')">← Zpět</button>
+      <button class="btn btn-primary" onclick="go(3,'b4')">Pokračovat →</button>
+    </div>
+  </div>
+
+  <!-- ===== BLOK 4: AI ===== -->
+  <div class="card" id="b4">
+    <span class="badge">Hloubkový průzkum</span>
+    <h2>AI a funkce systému</h2>
+    <p class="subtitle">Klíčové slovo není „lepší skladový systém" — je to jiná kategorie produktu. Obsluha řekne hlasem co potřebuje, systém to zpracuje. Žádné formuláře, žádné klikání v menu. Řekněte nám, co by vám v praxi skutečně pomohlo.</p>
+
+    <div class="question">
+      <span class="question-label">Které funkce by pro vás byly nejcennější?</span>
+      <p class="question-hint">Vyberte vše, co se vám hodí.</p>
+      <div class="opts">
+        <label class="opt"><input type="checkbox" name="q_features" value="ai_orders"><label>AI analýza objednávek a prodejních trendů</label></label>
+        <label class="opt"><input type="checkbox" name="q_features" value="ai_inventory"><label>Automatické objednávky zboží podle zásob</label></label>
+        <label class="opt"><input type="checkbox" name="q_features" value="ai_staff"><label>Chytrý rozvrh směn</label></label>
+        <label class="opt"><input type="checkbox" name="q_features" value="ai_menu"><label>Doporučení menu na základě dat</label></label>
+        <label class="opt"><input type="checkbox" name="q_features" value="dashboard"><label>Přehledný dashboard v reálném čase</label></label>
+        <label class="opt"><input type="checkbox" name="q_features" value="mobile"><label>Správa provozovny přes mobilní telefon</label></label>
+        <label class="opt"><input type="checkbox" name="q_features" value="integrations"><label>Napojení na účetnictví, Wolt, Bolt Food apod.</label></label>
+        <label class="opt"><input type="checkbox" name="q_features" value="other" onchange="togCb('q_features','tw8')"><label>Jiná funkce</label></label>
+      </div>
+      <div class="custom-wrap" id="tw8"><input type="text" id="q_features_custom" placeholder="Jaká funkce by vám pomohla?"></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">Máte obavy z nasazení AI v provozovně?</span>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q_ai_concern" value="no"><label>Ne, jsem otevřen novým technologiím</label></label>
+        <label class="opt"><input type="radio" name="q_ai_concern" value="privacy"><label>Ano — obavy o soukromí dat</label></label>
+        <label class="opt"><input type="radio" name="q_ai_concern" value="staff"><label>Ano — personál to nebude umět používat</label></label>
+        <label class="opt"><input type="radio" name="q_ai_concern" value="cost"><label>Ano — bude to příliš drahé</label></label>
+        <label class="opt"><input type="radio" name="q_ai_concern" value="other" onchange="tog('tw9',true)"><label>Jiné obavy</label></label>
+      </div>
+      <div class="custom-wrap" id="tw9"><input type="text" id="q_ai_concern_custom" placeholder="Popište vaše obavy…"></div>
+    </div>
+
+    <div class="question" style="margin-top:1.5rem;padding-top:1.5rem;border-top:1px solid var(--border);">
+      <span class="question-label">Chcete, abychom vás kontaktovali pro testování produktu? <span style="font-weight:400;color:var(--text-muted)">(volitelné)</span></span>
+      <p class="question-hint" style="margin-bottom:8px;">Zanechte svůj e-mail — ozveme se vám jako prvním, až spustíme beta verzi.</p>
+      <div class="custom-wrap show"><input type="email" id="q_email_b4" placeholder="váš@email.cz"></div>
+    </div>
+
+    <div class="nav">
+      <button class="btn" onclick="go(4,'b3')">← Zpět</button>
+      <button class="btn btn-primary" onclick="go(4,'b5')">Pokračovat →</button>
+    </div>
+  </div>
+
+  <!-- ===== BLOK 5: ROZHODOVÁNÍ ===== -->
+  <div class="card" id="b5">
+    <span class="badge">Závěrečný blok</span>
+    <h2>Rozhodování a rozpočet</h2>
+    <p class="subtitle">Poslední část. Chceme pochopit, jak se v praxi rozhoduje o nových systémech a jaký model spolupráce dává smysl pro provozovatele jako vy.</p>
+
+    <div class="question">
+      <span class="question-label">Kdo rozhoduje o nákupu nového softwaru?</span>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q_decision" value="me"><label>Já sám</label></label>
+        <label class="opt"><input type="radio" name="q_decision" value="owner"><label>Majitel / jednatel</label></label>
+        <label class="opt"><input type="radio" name="q_decision" value="team"><label>Rozhodujeme společně jako tým</label></label>
+        <label class="opt"><input type="radio" name="q_decision" value="other" onchange="tog('tw10',true)"><label>Jiný způsob rozhodování</label></label>
+      </div>
+      <div class="custom-wrap" id="tw10"><input type="text" id="q_decision_custom" placeholder="Popište váš rozhodovací proces…"></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">Přijatelný měsíční rozpočet na POS systém</span>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q_budget" value="low"><label>Do 1 000 Kč / měsíc</label></label>
+        <label class="opt"><input type="radio" name="q_budget" value="mid"><label>1 000 – 3 000 Kč / měsíc</label></label>
+        <label class="opt"><input type="radio" name="q_budget" value="high"><label>3 000 – 6 000 Kč / měsíc</label></label>
+        <label class="opt"><input type="radio" name="q_budget" value="enterprise"><label>6 000+ Kč / měsíc (velká provozovna)</label></label>
+        <label class="opt"><input type="radio" name="q_budget" value="other" onchange="tog('tw11',true)"><label>Jiný model / jednorázově</label></label>
+      </div>
+      <div class="custom-wrap" id="tw11"><input type="text" id="q_budget_custom" placeholder="Upřesněte váš rozpočet nebo preferovaný model…"></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">Jak preferujete nákup softwaru?</span>
+      <div class="opts">
+        <label class="opt"><input type="radio" name="q_buy" value="subscription"><label>Předplatné (SaaS) — platím měsíčně</label></label>
+        <label class="opt"><input type="radio" name="q_buy" value="onetime"><label>Jednorázová platba</label></label>
+        <label class="opt"><input type="radio" name="q_buy" value="trial"><label>Nejdřív vyzkouším zdarma, pak se rozhodnu</label></label>
+        <label class="opt"><input type="radio" name="q_buy" value="other" onchange="tog('tw12',true)"><label>Jiné preference</label></label>
+      </div>
+      <div class="custom-wrap" id="tw12"><input type="text" id="q_buy_custom" placeholder="Popište vaše preference…"></div>
+    </div>
+
+    <div class="question">
+      <span class="question-label">
+        Chcete, abychom vás kontaktovali pro testování produktu v budoucnosti?
+        <span style="font-weight:400;color:var(--text-muted)"> (volitelné)</span>
+      </span>
+      <p class="question-hint" style="margin-bottom:8px;">Zanechte svůj e-mail — ozveme se vám jako prvním, až spustíme beta verzi.</p>
+      <div class="custom-wrap show">
+        <input type="email" id="q_email" placeholder="váš@email.cz">
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="btn" onclick="go(5,'b4')">← Zpět</button>
+      <button class="btn btn-primary" id="submit-btn" onclick="send(false)">Odeslat dotazník ✓</button>
+    </div>
+  </div>
+
+  <!-- ===== ALREADY ANSWERED ===== -->
+  <div class="card" id="balready">
+    <div class="success">
+      <div class="check-circle" style="background:#FEF3C7;">
+        <svg viewBox="0 0 24 24" style="stroke:#d97706;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <h2>Již jste odpověděli</h2>
+      <p>Váš dotazník byl již odeslán.<br>Děkujeme za účast!</p>
+    </div>
+  </div>
+
+  <!-- ===== SUCCESS ===== -->
+  <div class="card" id="bsuccess">
+    <div class="success">
+      <div class="check-circle">
+        <svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2>Děkujeme!</h2>
+      <p>Vaše odpovědi byly úspěšně odeslány.<br>Pomůžete nám vytvořit systém, který bude skutečně fungovat pro provozovatele jako vy.</p>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<script>
+const SUPABASE_URL = 'https://mfddqfpfkmxkaickpiwk.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mZGRxZnBma214a2FpY2twaXdrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5Mjg3NDEsImV4cCI6MjA5NTUwNDc0MX0.w4Fezb6sl5qamsGZmfn0i2S_1TIFQPMEfDIzACS12kk';
+
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+if (localStorage.getItem('horeca_survey_done')) {
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+  const already = document.getElementById('balready');
+  if (already) already.classList.add('active');
+  document.getElementById('prog').style.width = '100%';
+  document.getElementById('prog-label').textContent = 'Již odesláno';
+  document.getElementById('prog-pct').textContent = '100 %';
+}
+
+const PROGRESS = { b1:10, b2:35, bgate:50, b3:65, b4:80, b5:95 };
+const LABELS = { b1:'Blok 1 z 5', b2:'Blok 2 z 5', bgate:'Volitelná část', b3:'Blok 3 z 5', b4:'Blok 4 z 5', b5:'Blok 5 z 5' };
+let scales = {};
+
+function setProgress(id) {
+  const p = PROGRESS[id] || 100;
+  document.getElementById('prog').style.width = p + '%';
+  document.getElementById('prog-label').textContent = LABELS[id] || 'Hotovo!';
+  document.getElementById('prog-pct').textContent = p + ' %';
+}
+
+function validate(block) {
+  let ok = true;
+
+  const required = {
+    b1: ['q_type', 'q_size', 'q_role'],
+    b2: ['q_has_pos', 'q_current_pain'],
+    b3: [],
+    b4: ['q_ai_concern'],
+    b5: ['q_decision', 'q_budget', 'q_buy'],
+  };
+
+  const fields = required[block] || [];
+
+  fields.forEach(name => {
+    const inputs = document.querySelectorAll(`input[name="${name}"]`);
+    const isRadio = inputs[0]?.type === 'radio';
+    const isCb = inputs[0]?.type === 'checkbox';
+    const checked = document.querySelector(`input[name="${name}"]:checked`);
+
+    const wrap = inputs[0]?.closest('.question');
+    if (!checked) {
+      ok = false;
+      if (wrap) {
+        wrap.classList.add('error');
+        setTimeout(() => wrap.classList.remove('error'), 2500);
+      }
+    }
+  });
+
+  // блок 2: шкала обязательна
+  if (block === 'b2' && !scales.satisfaction) {
+    ok = false;
+    const sc = document.getElementById('sc-sat');
+    if (sc) {
+      sc.classList.add('error-scale');
+      setTimeout(() => sc.classList.remove('error-scale'), 2500);
+    }
+  }
+
+  // блок 3: хотя бы одно из двух checkbox-групп
+  if (block === 'b3') {
+    const timeChecked = document.querySelector('input[name="q_time"]:checked');
+    const moneyChecked = document.querySelector('input[name="q_money"]:checked');
+    if (!timeChecked) {
+      ok = false;
+      const w = document.querySelector('input[name="q_time"]')?.closest('.question');
+      if (w) { w.classList.add('error'); setTimeout(() => w.classList.remove('error'), 2500); }
+    }
+    if (!moneyChecked) {
+      ok = false;
+      const w = document.querySelector('input[name="q_money"]')?.closest('.question');
+      if (w) { w.classList.add('error'); setTimeout(() => w.classList.remove('error'), 2500); }
+    }
+  }
+
+  // блок 4: features — хотя бы один
+  if (block === 'b4') {
+    const feat = document.querySelector('input[name="q_features"]:checked');
+    if (!feat) {
+      ok = false;
+      const w = document.querySelector('input[name="q_features"]')?.closest('.question');
+      if (w) { w.classList.add('error'); setTimeout(() => w.classList.remove('error'), 2500); }
+    }
+  }
+
+  return ok;
+}
+
+function go(from, to) {
+  const blockId = from === 'gate' ? 'bgate' : 'b' + from;
+  if (from !== 'gate' && !validate('b' + from)) return;
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+  document.getElementById(to).classList.add('active');
+  setProgress(to);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function tog(id, show) {
+  document.getElementById(id).classList.toggle('show', show);
+}
+
+function togCb(name, wrapId) {
+  const anyOther = !!document.querySelector(`input[name="${name}"][value="other"]:checked`);
+  document.getElementById(wrapId).classList.toggle('show', anyOther);
+}
+
+function scale(name, val) {
+  scales[name] = val;
+  document.querySelectorAll(`#sc-${name.substring(0,3)} .scale-btn`).forEach((b, i) => {
+    b.classList.toggle('on', i + 1 === val);
+  });
+}
+
+function collect() {
+  const data = { partial: false };
+  document.querySelectorAll('input[type=radio]:checked').forEach(r => { data[r.name] = r.value; });
+  const cb = {};
+  document.querySelectorAll('input[type=checkbox]:checked').forEach(c => {
+    if (!cb[c.name]) cb[c.name] = [];
+    cb[c.name].push(c.value);
+  });
+  Object.assign(data, cb);
+  if (scales.satisfaction) data.scale_satisfaction = scales.satisfaction;
+  // email — vezme první vyplněný ze všech bloků
+  const emailIds = ['q_email_b1','q_email_b2','q_email_b3','q_email_b4','q_email'];
+  for (const eid of emailIds) {
+    const el = document.getElementById(eid);
+    if (el && el.value.trim()) { data.q_email = el.value.trim(); break; }
+  }
+  ['q_type_custom','q_size_custom','q_role_custom','q_has_pos_custom','q_current_pain_custom',
+   'q_time_custom','q_money_custom','q_one_change','q_features_custom','q_ai_concern_custom',
+   'q_decision_custom','q_budget_custom','q_buy_custom','q_email'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && el.value.trim()) data[id] = el.value.trim();
+  });
+  return data;
+}
+
+async function send(partial) {
+  const btn = document.getElementById('submit-btn');
+  if (btn) btn.disabled = true;
+  const data = collect();
+  data.partial = partial;
+
+  try {
+    const { error } = await db.from('survey_responses').insert([data]);
+    if (error) console.error('Supabase error:', error);
+  } catch(e) {
+    console.error('Network error:', e);
+  }
+
+  localStorage.setItem('horeca_survey_done', '1');
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
+  document.getElementById('bsuccess').classList.add('active');
+  document.getElementById('prog').style.width = '100%';
+  document.getElementById('prog-label').textContent = 'Hotovo!';
+  document.getElementById('prog-pct').textContent = '100 %';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+document.addEventListener('change', e => {
+  const radioOther = { q_type:'tw1', q_size:'tw2', q_role:'tw3', q_has_pos:'tw4', q_ai_concern:'tw9', q_decision:'tw10', q_budget:'tw11', q_buy:'tw12' };
+  if (e.target.type === 'radio' && radioOther[e.target.name]) {
+    tog(radioOther[e.target.name], e.target.value === 'other');
+  }
+});
+</script>
+</body>
+</html>
